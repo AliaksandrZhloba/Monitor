@@ -8,7 +8,24 @@
         Title="MainWindow" Height="450" Width="800">
 
     <Grid>
-        <ListView ItemsSource="{Binding Activities, Mode=OneTime}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0" HorizontalAlignment="Right" Width="320">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition />
+                <ColumnDefinition />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Total work:" HorizontalAlignment="Right" />
+            <TextBlock Grid.Column="1" Text="{Binding TotalWork, Mode=OneWay}" HorizontalAlignment="Left" />
+            <TextBlock Grid.Column="2" Text="Total idle:" HorizontalAlignment="Right" />
+            <TextBlock Grid.Column="3" Text="{Binding TotalIdle, Mode=OneWay}" HorizontalAlignment="Left" />
+        </Grid>
+
+        <ListView Grid.Row="1" ItemsSource="{Binding Activities, Mode=OneTime}">
             <ListView.View>
                 <GridView>
                     <GridView.Columns>

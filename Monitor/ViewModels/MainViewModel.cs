@@ -1,22 +1,30 @@
-﻿using System.Timers;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using Monitor.Helpers;
 using System.Windows.Threading;
 using System;
 using Gma.System.MouseKeyHook;
 using System.Windows.Forms;
+using System.Linq;
 
 namespace Monitor.ViewModels
 {
     public class MainViewModel : BaseViewModel
     {
         readonly IKeyboardMouseEvents _globalHook;
-        readonly DispatcherTimer _timer;
+        readonly System.Timers.Timer _timer;
+        readonly Dispatcher _dispatcher;
 
 
         public ObservableCollection<ActivityEvent> Activities { get; }
+
+        double _totalWork;
+        double _totalIdle;
+        public double TotalWork { get => _totalWork; private set { _totalWork = value; OnPropertyChanged(); } }
+        public double TotalIdle { get => _totalIdle; private set { _totalIdle = value; OnPropertyChanged(); } }
+
         ActivityEvent _currentActivity;
         DateTime _currentActivityStartedUtc;
+        readonly TimeSpan _delta = TimeSpan.FromMilliseconds(100);
 
 
         public MainViewModel()
@@ -25,8 +33,13 @@ namespace Monitor.ViewModels
             _currentActivity = new ActivityEvent(ActiveWindowHelper.GetActiveWindowTitle(), false, TimeSpan.Zero);
             _currentActivityStartedUtc = DateTime.UtcNow;
 
+            Activities.Add(_currentActivity);
+
+            _dispatcher = Dispatcher.CurrentDispatcher;
+
             _globalHook = Hook.GlobalEvents();
-            _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(100), DispatcherPriority.Background, OnTimerAlpsed, Dispatcher.CurrentDispatcher);
+            _timer = new System.Timers.Timer(100);
+            _timer.Elapsed += OnTimerElapsed;
         }
 
 
@@ -47,10 +60,11 @@ namespace Monitor.ViewModels
             _globalHook.Dispose();
 
             _timer.Stop();
+            _timer.Dispose();
         }
 
 
-        void OnTimerAlpsed(object sender, EventArgs e)
+        void OnTimerElapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
             UpdateState();
         }
@@ -84,11 +98,41 @@ namespace Monitor.ViewModels
                 _currentActivity = new ActivityEvent(window, true, TimeSpan.Zero);
                 Activities.Add(_currentActivity);
             }
+
+            Recalc();
         }
 
         void UpdateState()
         {
+            var nowUtc = DateTime.UtcNow;
+            var currentActivityEndedUtc = _currentActivityStartedUtc + _currentActivity.Duration;
+            if (nowUtc - currentActivityEndedUtc > _delta)
+            {
+                _dispatcher.Invoke(
+                    () =>
+                    {
+                        if (_currentActivity.IsActive)
+                        {
+                            var window = ActiveWindowHelper.GetActiveWindowTitle();
+                            _currentActivityStartedUtc = nowUtc;
+                            _currentActivity = new ActivityEvent(window, false, TimeSpan.Zero);
+                            Activities.Add(_currentActivity);
+                        }
+                        else
+                        {
+                            _currentActivity.Duration = nowUtc - _currentActivityStartedUtc;
+                        }
 
+                        Recalc();
+                    });
+            }
+        }
+
+
+        void Recalc()
+        {
+            TotalWork = Activities.Where(x => x.IsActive).Sum(x => x.Duration.TotalSeconds);
+            TotalIdle = Activities.Where(x => !x.IsActive).Sum(x => x.Duration.TotalSeconds);
         }
     }
 }
