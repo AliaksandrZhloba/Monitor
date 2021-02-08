@@ -89,14 +89,23 @@ namespace Monitor.ViewModels
         void UpdateActive()
         {
             var nowUtc = DateTime.UtcNow;
-            _currentActivity.Duration = nowUtc - _currentActivityStartedUtc;
+            _currentActivity.Duration += nowUtc - _currentActivityStartedUtc;
+            _currentActivityStartedUtc = nowUtc;
 
             var window = ActiveWindowHelper.GetActiveWindowTitle();
             if (_currentActivity.Window != window || !_currentActivity.IsActive)
             {
-                _currentActivityStartedUtc = nowUtc;
-                _currentActivity = new ActivityEvent(window, true, TimeSpan.Zero);
-                Activities.Add(_currentActivity);
+                var currentWindowActivity = Activities.FirstOrDefault(x => x.Window == window && x.IsActive);
+                if (currentWindowActivity != null)
+                {
+                    _currentActivity = currentWindowActivity;
+                }
+                else
+                {
+                    _currentActivityStartedUtc = nowUtc;
+                    _currentActivity = new ActivityEvent(window, true, TimeSpan.Zero);
+                    Activities.Add(_currentActivity);
+                }
             }
 
             Recalc();
@@ -105,8 +114,7 @@ namespace Monitor.ViewModels
         void UpdateState()
         {
             var nowUtc = DateTime.UtcNow;
-            var currentActivityEndedUtc = _currentActivityStartedUtc + _currentActivity.Duration;
-            if (nowUtc - currentActivityEndedUtc > _delta)
+            if (nowUtc - _currentActivityStartedUtc > _delta)
             {
                 _dispatcher.Invoke(
                     () =>
@@ -114,13 +122,22 @@ namespace Monitor.ViewModels
                         if (_currentActivity.IsActive)
                         {
                             var window = ActiveWindowHelper.GetActiveWindowTitle();
-                            _currentActivityStartedUtc = nowUtc;
-                            _currentActivity = new ActivityEvent(window, false, TimeSpan.Zero);
-                            Activities.Add(_currentActivity);
+                            var currentWindowActivity = Activities.FirstOrDefault(x => x.Window == window && !x.IsActive);
+                            if (currentWindowActivity != null)
+                            {
+                                _currentActivity = currentWindowActivity;
+                            }
+                            else
+                            {
+                                _currentActivityStartedUtc = nowUtc;
+                                _currentActivity = new ActivityEvent(window, false, TimeSpan.Zero);
+                                Activities.Add(_currentActivity);
+                            }
                         }
                         else
                         {
-                            _currentActivity.Duration = nowUtc - _currentActivityStartedUtc;
+                            _currentActivity.Duration += nowUtc - _currentActivityStartedUtc;
+                            _currentActivityStartedUtc = nowUtc;
                         }
 
                         Recalc();
