@@ -22,9 +22,14 @@ namespace Monitor.ViewModels
         public double TotalWork { get => _totalWork; private set { _totalWork = value; OnPropertyChanged(); } }
         public double TotalIdle { get => _totalIdle; private set { _totalIdle = value; OnPropertyChanged(); } }
 
+
+        TimeSpan _currentIdle;
+        public TimeSpan CurrentIdle { get => _currentIdle; private set { _currentIdle = value; OnPropertyChanged(); } }
+
+
         ActivityEvent _currentActivity;
         DateTime _currentActivityStartedUtc;
-        readonly TimeSpan _delta = TimeSpan.FromMilliseconds(100);
+        readonly TimeSpan _delta = TimeSpan.FromMilliseconds(4000);
 
 
         public MainViewModel()
@@ -114,34 +119,56 @@ namespace Monitor.ViewModels
         void UpdateState()
         {
             var nowUtc = DateTime.UtcNow;
-            if (nowUtc - _currentActivityStartedUtc > _delta)
+            if(_currentActivity.IsActive)
+            {
+                if(nowUtc - _currentActivityStartedUtc > _delta)
+                {
+                    var window = ActiveWindowHelper.GetActiveWindowTitle();
+                    var currentWindowIdleActivity = Activities.FirstOrDefault(x => x.Window == window && !x.IsActive);
+                    if (currentWindowIdleActivity != null)
+                    {
+                        _currentActivity = currentWindowIdleActivity;
+                        _dispatcher.Invoke(
+                            () =>
+                            {
+                                _currentActivity.Duration += nowUtc - _currentActivityStartedUtc;
+                                _currentActivityStartedUtc = nowUtc;
+                                Recalc();
+
+                                CurrentIdle = TimeSpan.Zero;
+                            });
+                    }
+                    else
+                    {
+                        _currentActivity = new ActivityEvent(window, false, TimeSpan.Zero);
+                        _currentActivity.Duration += nowUtc - _currentActivityStartedUtc;
+                        _dispatcher.Invoke(
+                            () =>
+                            {
+                                Activities.Add(_currentActivity);
+                                Recalc();
+
+                                CurrentIdle = TimeSpan.Zero;
+                            });
+                    }
+
+                    _currentActivityStartedUtc = nowUtc;
+                }
+                else
+                {
+                    _dispatcher.Invoke(() => CurrentIdle = nowUtc - _currentActivityStartedUtc);
+                }
+            }
+            else
             {
                 _dispatcher.Invoke(
                     () =>
                     {
-                        if (_currentActivity.IsActive)
-                        {
-                            var window = ActiveWindowHelper.GetActiveWindowTitle();
-                            var currentWindowActivity = Activities.FirstOrDefault(x => x.Window == window && !x.IsActive);
-                            if (currentWindowActivity != null)
-                            {
-                                _currentActivity = currentWindowActivity;
-                            }
-                            else
-                            {
-                                _currentActivityStartedUtc = nowUtc;
-                                _currentActivity = new ActivityEvent(window, false, TimeSpan.Zero);
-                                Activities.Add(_currentActivity);
-                            }
-                        }
-                        else
-                        {
-                            _currentActivity.Duration += nowUtc - _currentActivityStartedUtc;
-                            _currentActivityStartedUtc = nowUtc;
-                        }
-
+                        _currentActivity.Duration += nowUtc - _currentActivityStartedUtc;
                         Recalc();
                     });
+
+                _currentActivityStartedUtc = nowUtc;
             }
         }
 
