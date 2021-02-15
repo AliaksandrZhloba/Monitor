@@ -62,6 +62,7 @@
     </ApplicationDefinition>
     <Compile Include="Helpers\ActiveWindowHelper.cs" />
     <Compile Include="Helpers\ActivityEvent.cs" />
+    <Compile Include="Helpers\RelayCommand.cs" />
     <Compile Include="ViewModels\BaseViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Page Include="Views\MainWindow.xaml">

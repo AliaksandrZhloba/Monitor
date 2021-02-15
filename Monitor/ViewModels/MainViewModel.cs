@@ -5,6 +5,8 @@ using System;
 using Gma.System.MouseKeyHook;
 using System.Windows.Forms;
 using System.Linq;
+using System.Windows.Input;
+using System.IO;
 
 namespace Monitor.ViewModels
 {
@@ -23,13 +25,16 @@ namespace Monitor.ViewModels
         public double TotalIdle { get => _totalIdle; private set { _totalIdle = value; OnPropertyChanged(); } }
 
 
-        TimeSpan _currentIdle;
-        public TimeSpan CurrentIdle { get => _currentIdle; private set { _currentIdle = value; OnPropertyChanged(); } }
+        TimeSpan _idleTimer;
+        public TimeSpan IdleTimer { get => _idleTimer; private set { _idleTimer = value; OnPropertyChanged(); } }
 
 
         ActivityEvent _currentActivity;
         DateTime _currentActivityStartedUtc;
-        readonly TimeSpan _delta = TimeSpan.FromMilliseconds(4000);
+        readonly TimeSpan _delta = Properties.Settings.Default.IdleThreshold;
+
+
+        public ICommand SaveCommand { get; }
 
 
         public MainViewModel()
@@ -45,6 +50,8 @@ namespace Monitor.ViewModels
             _globalHook = Hook.GlobalEvents();
             _timer = new System.Timers.Timer(100);
             _timer.Elapsed += OnTimerElapsed;
+
+            SaveCommand = new RelayCommand(SaveExecute);
         }
 
 
@@ -135,7 +142,7 @@ namespace Monitor.ViewModels
                                 _currentActivityStartedUtc = nowUtc;
                                 Recalc();
 
-                                CurrentIdle = TimeSpan.Zero;
+                                IdleTimer = TimeSpan.Zero;
                             });
                     }
                     else
@@ -148,7 +155,7 @@ namespace Monitor.ViewModels
                                 Activities.Add(_currentActivity);
                                 Recalc();
 
-                                CurrentIdle = TimeSpan.Zero;
+                                IdleTimer = TimeSpan.Zero;
                             });
                     }
 
@@ -156,7 +163,7 @@ namespace Monitor.ViewModels
                 }
                 else
                 {
-                    _dispatcher.Invoke(() => CurrentIdle = nowUtc - _currentActivityStartedUtc);
+                    _dispatcher.Invoke(() => IdleTimer = nowUtc - _currentActivityStartedUtc);
                 }
             }
             else
@@ -177,6 +184,27 @@ namespace Monitor.ViewModels
         {
             TotalWork = Activities.Where(x => x.IsActive).Sum(x => x.Duration.TotalSeconds);
             TotalIdle = Activities.Where(x => !x.IsActive).Sum(x => x.Duration.TotalSeconds);
+        }
+
+
+        void SaveExecute(object prm)
+        {
+            var saveFileDialog = new SaveFileDialog() { Filter = "csv files|*.csv" };
+            if(saveFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                var activities = Activities.ToList();
+                using(var writer = File.CreateText(saveFileDialog.FileName))
+                {
+                    var headers = string.Join(",", new[] { "Window", "Is Active", "Duration" } );
+                    writer.WriteLine(headers);
+
+                    foreach(var activity in activities)
+                    {
+                        var line = string.Join(",", new[] { $"\"{activity.Window}\"", activity.IsActive.ToString(), activity.Duration.ToString() });
+                        writer.WriteLine(line);
+                    }
+                }
+            }
         }
     }
 }
