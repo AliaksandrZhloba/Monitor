@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using System.Linq;
 using System.Windows.Input;
 using System.IO;
+using System.Text;
 
 namespace Monitor.ViewModels
 {
@@ -193,14 +194,26 @@ namespace Monitor.ViewModels
             if(saveFileDialog.ShowDialog() == DialogResult.OK)
             {
                 var activities = Activities.ToList();
-                using(var writer = File.CreateText(saveFileDialog.FileName))
+                using(var writer = new StreamWriter(saveFileDialog.FileName, false, Encoding.UTF8))
                 {
-                    var headers = string.Join(",", new[] { "Window", "Is Active", "Duration" } );
+                    var headers = string.Join(",", new[] { "Window", "Active", "Idle" } );
                     writer.WriteLine(headers);
 
                     foreach(var activity in activities)
                     {
-                        var line = string.Join(",", new[] { $"\"{activity.Window}\"", activity.IsActive.ToString(), activity.Duration.ToString() });
+                        string active, idle;
+                        if(activity.IsActive)
+                        {
+                            active = activity.Duration.ToString();
+                            idle = string.Empty;
+                        }
+                        else
+                        {
+                            active = string.Empty;
+                            idle = activity.Duration.ToString();
+                        }
+
+                        var line = string.Join(",", new[] { $"\"{activity.Window}\"", active, idle });
                         writer.WriteLine(line);
                     }
                 }
